@@ -1,15 +1,15 @@
 /* Ralph Doncaster 2018
- * TM1638NR.h - Library for addressing TM1638 I/O chips/card from Arduino.
+ * TM1638NR.h - control TM1638-based LED & key modules
  * MIT license.
  * 20200317 v1.2: new rxtx method
  * 20200318 v2.0 reverse bitorder for readButtons + size optimized
+ * 20200326 v2.1 added displayHex -> displayNibble x 2
  */
 
-#ifndef TM1638NR_h
-#define TM1638NR_h
+#pragma once
 
 /*
-segments:
+LED & Key module segments:
   -0-
  5   1
   -6-
@@ -65,14 +65,19 @@ class TM1638NR {
     writeLoc(position<<1, value);
   }
 
-  __attribute((noinline))
-  static void displayHex(uint8_t position, uint8_t nibble) {
+  // display lower nibble as hex (0-F)
+  static void displayNibble(uint8_t position, uint8_t nibble) {
     displaySS(position, pgm_read_byte(HEXSS + (nibble & 0x0F)));
   }
 
+  // display binary u8 as 2-digit hex number
+  static void displayHex(uint8_t position, uint8_t value) {
+    displayNibble(position, value / 16);
+    displayNibble(position + 1, value);
+  }
+
  private:
-  // open-drain output, data clocked on rising edge, LSB first
-  // 1Mhz max
+  // open-drain output, data clocked on rising edge, LSB first 1Mhz max
   static void send(uint8_t data) {
     rxtx(data);
   }
@@ -95,8 +100,7 @@ class TM1638NR {
     return data;
   }
 
-  // data clocked from slave on falling edge, LSB first
-  // 1Mhz max
+  // data clocked from slave on falling edge, LSB first 1Mhz max
   static uint8_t receive() {
     return rxtx(0xFF);
   }
@@ -138,4 +142,3 @@ inline uint8_t TM1638NR::readButtons() {
   return buttons;
 }
 
-#endif
