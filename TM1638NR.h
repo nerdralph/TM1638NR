@@ -4,6 +4,7 @@
  * 20200317 v1.2: new rxtx method
  * 20200318 v2.0 reverse bitorder for readButtons + size optimized
  * 20200326 v2.1 added displayHex -> displayNibble x 2
+ * 20200415 v2.1.1 add comments & code cleanup
  */
 
 #pragma once
@@ -38,10 +39,10 @@ static const int8_t HEXSS[] PROGMEM = {
 
 class TM1638NR {
  public:
-  // brightness levels 0-7
+  // brightness levels 0-7 - see datasheet section 5.3
   static void reset(byte brightness = 2){
-    send(ACTIVATE | (brightness & 0x07));
-    // initialize display data (0x00 to 0x0F) to 0
+    send(DISPLAY_ON | (brightness & 0x07));
+    // initialize display data (address 0x00 to 0x0F) to 0
     uint8_t i = 15;
     do {
       writeLoc(i, 0);
@@ -49,7 +50,21 @@ class TM1638NR {
   }
 
   // 8 buttons from K3 supported
-  static uint8_t readButtons();
+  // rightmost button (S8) = bit 0, leftmost (S1) = bit 7
+  // see datasheet section VII for key scanning
+  static uint8_t readButtons() {
+    send(READ_KEYS);
+
+    uint8_t buttons = 0;
+    for (uint8_t i = 0; i < 4; i++) {
+      buttons <<= 1;
+      uint8_t scan = receive();           // read 2 buttons at a time
+      buttons |= (scan >> 4 | scan << 4); // swap nibbles
+    } 
+
+    pinMode(STROBE, INPUT);
+    return buttons;
+  }
 
   // bit 0 = LED 0 ... 
   static void setLEDs(uint8_t mask) {
@@ -105,8 +120,10 @@ class TM1638NR {
     return rxtx(0xFF);
   }
 
+  // set address (0-F), then send data to write
+  // see datasheet section 5.2 & X(2)
   static void writeLoc(uint8_t position, uint8_t value) {
-    send(0xC0 + position);
+    send(SET_ADDRESS | position);
     send(value);
     pinMode(STROBE, INPUT);
   }
@@ -115,30 +132,11 @@ class TM1638NR {
   static const byte CLOCK;
   static const byte DATA;
 
- 
   enum COMMAND {
-    ACTIVATE = 0x88,
-    BUTTONS = 0x42,
-    WRITE_LOC = 0x44
+    READ_KEYS = 0x42,                   // datasheet s 5.1
+    DISPLAY_ON = 0x88,                  // datasheet s 5.3
+    SET_ADDRESS = 0xC0                  // datasheet s 5.2
   };
 
 };
-
-// rightmost button (S8) = bit 0, leftmost (S1) = bit 7
-inline uint8_t TM1638NR::readButtons() {
-  uint8_t buttons;
-  send(BUTTONS);
-
-  //uint8_t lomsk = 0x01, himsk = 0x10;
-  buttons = 0;
-  for (uint8_t i = 0; i < 4; i++) {
-    buttons <<= 1;
-    uint8_t scan = receive();
-    // swap nibbles
-    buttons |= (scan >> 4 | scan << 4);
-  } 
-
-  pinMode(STROBE, INPUT);
-  return buttons;
-}
 
